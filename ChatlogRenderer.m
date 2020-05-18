@@ -6,6 +6,8 @@
 //  Copyright 2011 __MyCompanyName__. All rights reserved.
 //
 
+#include <QuickLook/QuickLook.h>
+
 #import "ChatlogRenderer.h"
 
 @implementation ChatlogRenderer
@@ -15,13 +17,15 @@
 @synthesize url=_url;
 @synthesize account=_account;
 @synthesize service=_service;
+@synthesize attachments=_attachments;
 
 - (void)dealloc {
     [rendererBundle release];
     [super dealloc];
 }
 
-- (NSString*)generateHTMLForURL:(NSURL*)url {
+- (NSString *)generateHTMLForURL:(NSURL *)url attachments:(NSDictionary * __autoreleasing *)attachmentsDict
+{
     self.url = url;
     
     NSDictionary* userDefaults = [[NSUserDefaults standardUserDefaults] persistentDomainForName:PROJECT_ID];
@@ -47,7 +51,8 @@
     NSXMLElement* chatNode = [[document nodesForXPath:@"/chat" error:&error] objectAtIndex:0];
     self.account = [[chatNode attributeForName:@"account"] stringValue];
     self.service = [[chatNode attributeForName:@"service"] stringValue];
-
+    self.attachments = [NSMutableDictionary dictionary];
+    
     NSXMLElement* bodyElement = [NSXMLElement
                                  elementWithName:@"body" 
                                  children:[NSArray arrayWithObject:[self generateTableFromChatElement:chatNode]]
@@ -61,11 +66,15 @@
     if(debugLog)
         NSLog(@"html: %@", htmlElement);
     
+    if (attachmentsDict) {
+        *attachmentsDict = [NSDictionary dictionaryWithDictionary:self.attachments];
+    }
+    
     return [NSString stringWithFormat:@"%@", htmlElement];
 }
-                                 
+
 #pragma mark - Methods to generate HTML
-                                 
+
 - (NSXMLElement*)generateHead {
     NSError* error = nil;
     NSString* cssStyle = [NSString stringWithContentsOfURL:[rendererBundle URLForResource:@"chatlog" withExtension:@"css"]
@@ -130,6 +139,53 @@
     if(stripFontStyles == YES)
         [ChatlogRenderer removeStyleRecursive:content];
     
+    for (NSUInteger i = 0; i < content.childCount; i++) {
+        NSXMLElement *img = (NSXMLElement *)[content childAtIndex:i];
+        
+        if ([img.name caseInsensitiveCompare:@"img"] == NSOrderedSame) {
+            NSXMLNode *srcNode = [img attributeForName:@"src"];
+            
+            NSString *imgFilename = srcNode.stringValue;
+            
+            NSString *imgExt = imgFilename.pathExtension;
+            
+            NSString *mimeType = nil;
+            
+            if ([imgExt caseInsensitiveCompare:@"jpg"] == NSOrderedSame
+                || [imgExt caseInsensitiveCompare:@"jpeg"] == NSOrderedSame) {
+                
+                mimeType = @"image/jpg";
+            }
+            else if ([imgExt caseInsensitiveCompare:@"png"] == NSOrderedSame) {
+                mimeType = @"image/png";
+            }
+            else if ([imgExt caseInsensitiveCompare:@"tiff"] == NSOrderedSame) {
+                mimeType = @"image/tiff";
+            }
+            else {
+                continue;
+            }
+            
+            [srcNode setStringValue:[NSString stringWithFormat:@"cid:%@", imgFilename]];
+            
+            NSURL *imgUrl = [[self.url URLByDeletingLastPathComponent] URLByAppendingPathComponent:imgFilename];
+            
+            // Fails probably due to sandbox
+//            if (![NSFileManager.defaultManager fileExistsAtPath:imgUrl.absoluteString]) {
+//                NSLog(@"error: file did not exist at path specified by <img> - %@ ;; xml: %@", imgUrl.absoluteString, self.url);
+//
+//                continue;
+//            }
+            
+            NSData *imgData = [NSData dataWithContentsOfURL:imgUrl];
+            
+            self.attachments[imgFilename] = @{
+                (NSString *)kQLPreviewPropertyMIMETypeKey: mimeType,
+                (NSString *)kQLPreviewPropertyAttachmentDataKey: imgData
+            };
+        }
+    }
+    
     return [NSXMLElement elementWithName:@"td" 
                                 children:[NSArray arrayWithObject:content]
                               attributes:[NSArray arrayWithObject:[NSXMLElement attributeWithName:@"class" stringValue:@"what"]]];
@@ -149,7 +205,7 @@
 }
 
 - (NSXMLElement*)generateStatusRow:(NSXMLElement*)status {
-    NSLog(@"statusRow: %@:", status);
+//    NSLog(@"statusRow: %@:", status);
     
     NSString* sender = [[status attributeForName:@"sender"] stringValue];
     
@@ -181,26 +237,34 @@
         return nil;
     }
 }
-    
+
 #pragma mark - Utility Methods
 
 + (NSString*)formatDate:(NSString*)s {
+    static NSDateFormatter *ISO8601Formatter = nil;
+    static NSDateFormatter *hoursFormatter = nil;
+    
+    if (!ISO8601Formatter) {
+        ISO8601Formatter = [[[NSDateFormatter alloc] init] autorelease];
+        [ISO8601Formatter setTimeStyle:NSDateFormatterFullStyle];
+        [ISO8601Formatter setDateFormat:@"yyyy-MM-dd'T'HH:mm:ssZZZ"];
+    }
+    
+    if (!hoursFormatter) {
+        hoursFormatter = [[[NSDateFormatter alloc] init] autorelease];
+        [hoursFormatter setTimeStyle:NSDateFormatterShortStyle];
+        [hoursFormatter setDateFormat:@"HH:mm:ss"];
+    }
+    
 	// Remove : of time zone
 	NSMutableString *dateString = [[s mutableCopy] autorelease];
 	if ([dateString characterAtIndex: [dateString length] - 3] == ':')
 		[dateString deleteCharactersInRange: NSMakeRange([dateString length] - 3, 1)];
 	
 	// Create NSDate
-	NSDateFormatter *ISO8601Formatter = [[[NSDateFormatter alloc] init] autorelease];
-	[ISO8601Formatter setTimeStyle:NSDateFormatterFullStyle];
-	[ISO8601Formatter setDateFormat:@"yyyy-MM-dd'T'HH:mm:ssZZZ"];
 	NSDate *date = [ISO8601Formatter dateFromString:dateString];
 	
 	// Extract the hours
-	NSDateFormatter *hoursFormatter = [[[NSDateFormatter alloc] init] autorelease];
-	[hoursFormatter setTimeStyle:NSDateFormatterShortStyle];
-	[hoursFormatter	setDateFormat:@"HH:mm:ss"];
-	
 	return [hoursFormatter stringFromDate:date];
 }
 

@@ -13,6 +13,8 @@
     NSString* _account;
     NSString* _service;
     
+    NSMutableDictionary *_attachments;
+    
     BOOL stripFontStyles;
     BOOL debugLog;
     
@@ -22,8 +24,9 @@
 @property(retain) NSURL* url;
 @property(retain) NSString* account;
 @property(retain) NSString* service;
+@property (nonatomic, retain) NSMutableDictionary *attachments;
 
-- (NSString*)generateHTMLForURL:(NSURL*)url;
+- (NSString *)generateHTMLForURL:(NSURL *)url attachments:(NSDictionary * __autoreleasing *)attachmentsDict;
 
 - (NSXMLElement*)generateHead;
 - (NSXMLElement*)generateTableFromChatElement:(NSXMLElement*)chatElement;

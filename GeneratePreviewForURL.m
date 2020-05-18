@@ -55,37 +55,48 @@ OSStatus GeneratePreviewForURL(void *thisInterface,
                                CFDictionaryRef options)
 {
 #if 1
-    NSAutoreleasePool *  pool = [[NSAutoreleasePool alloc] init];
+    @autoreleasepool {
     
 	NSString *path = [(NSURL *)url path];
     
 	if ([[path pathExtension] isEqualToString:@"chatlog"]) {
 		BOOL isDir = NO;
-		if (![[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDir])
-			return 1;
+        if (![[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDir]) {
+//			  return kENOENTErr;
+            return fnfErr;
+//            return dirNFErr;
+        }
         
 		if (isDir) {
 			// is bundle
 			path = [path stringByAppendingPathComponent:[path lastPathComponent]];
 			path = [[path stringByDeletingPathExtension] stringByAppendingPathExtension:@"xml"];
 			if (! [[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDir] || isDir )
-				return 1;
+				return fnfErr;
 		}
         
         ChatlogRenderer* renderer = [[[ChatlogRenderer alloc] init] autorelease];
-        NSString* returnValue = [renderer generateHTMLForURL:[NSURL fileURLWithPath:path]];
+        NSDictionary *attachmentsDict = nil;
+        NSString* returnValue = [renderer generateHTMLForURL:[NSURL fileURLWithPath:path]
+                                                 attachments:&attachmentsDict];
         
-        NSDictionary *props = [NSDictionary dictionaryWithObjectsAndKeys:
+        NSMutableDictionary *props = [NSMutableDictionary dictionaryWithObjectsAndKeys:
                                @"UTF-8", (NSString *)kQLPreviewPropertyTextEncodingNameKey,
                                @"text/html", (NSString *)kQLPreviewPropertyMIMETypeKey,
                                nil];
+        
+        if (attachmentsDict && attachmentsDict.count > 0) {
+            [props setObject:attachmentsDict forKey:(NSString *)kQLPreviewPropertyAttachmentsKey];
+        }
+        
         QLPreviewRequestSetDataRepresentation(preview, (CFDataRef)[returnValue dataUsingEncoding:NSUTF8StringEncoding], 
                                               kUTTypeHTML, 
                                               (CFDictionaryRef)props);
     }
     
-    [pool release];
-    return 0;
+    } // @autoreleasepool
+    
+    return noErr;
     
 #else
     
