@@ -19,12 +19,17 @@
     BOOL debugLog;
     
     NSBundle* rendererBundle;
+    
+    NSDateFormatter *_ISO8601Formatter;
+    NSDateFormatter *_hoursFormatter;
 }
 
 @property(retain) NSURL* url;
 @property(retain) NSString* account;
 @property(retain) NSString* service;
 @property (nonatomic, retain) NSMutableDictionary *attachments;
+@property (nonatomic, retain) NSDateFormatter *ISO8601Formatter;
+@property (nonatomic, retain) NSDateFormatter *hoursFormatter;
 
 - (NSString *)generateHTMLForURL:(NSURL *)url attachments:(NSDictionary * __autoreleasing *)attachmentsDict;
 
@@ -34,7 +39,7 @@
 - (NSXMLElement*)generateEventRow:(NSXMLElement*)event;
 - (NSXMLElement*)generateStatusRow:(NSXMLElement*)status;
 
-+ (NSString*)formatDate:(NSString*)s;
+- (NSString*)formatDate:(NSString*)s;
 + (void)removeStyleRecursive:(NSXMLElement*)el;
 
 @end

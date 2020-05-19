@@ -60,20 +60,45 @@ OSStatus GeneratePreviewForURL(void *thisInterface,
 	NSString *path = [(NSURL *)url path];
     
 	if ([[path pathExtension] isEqualToString:@"chatlog"]) {
-		BOOL isDir = NO;
+//        NSFileHandle *fh = [NSFileHandle fileHandleForReadingAtPath:path];
+//
+//        NSError *readByteError = nil;
+//
+//        NSData *oneByteTry = [fh readDataUpToLength:1 error:&readByteError];
+//
+//        if (!oneByteTry || oneByteTry.length == 0 || readByteError) {
+//            // is bundle
+//            path = [path stringByAppendingPathComponent:[path lastPathComponent]];
+//            path = [[path stringByDeletingPathExtension] stringByAppendingPathExtension:@"xml"];
+//
+//            fh = [NSFileHandle fileHandleForReadingAtPath:path];
+//
+//            readByteError = nil;
+//
+//            NSData *oneByteTry = [fh readDataUpToLength:1 error:&readByteError];
+//
+//            if (!oneByteTry || oneByteTry.length == 0 || readByteError) {
+////                return fnfErr;
+//            }
+//        }
+        
+        // Now try the old way
+        
+        BOOL isDir = NO;
         if (![[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDir]) {
-//			  return kENOENTErr;
-            return fnfErr;
+//            return kENOENTErr;
+//            return fnfErr; // don't exit, might just be sandbox/API not giving us result for -fileExistsAtPath:
 //            return dirNFErr;
         }
         
-		if (isDir) {
-			// is bundle
-			path = [path stringByAppendingPathComponent:[path lastPathComponent]];
-			path = [[path stringByDeletingPathExtension] stringByAppendingPathExtension:@"xml"];
-			if (! [[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDir] || isDir )
-				return fnfErr;
-		}
+        if (isDir) {
+            // is bundle
+            path = [path stringByAppendingPathComponent:[path lastPathComponent]];
+            path = [[path stringByDeletingPathExtension] stringByAppendingPathExtension:@"xml"];
+            if (! [[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDir] || isDir ) {
+//                return fnfErr; // don't exit, might just be sandbox/API
+            }
+        }
         
         ChatlogRenderer* renderer = [[[ChatlogRenderer alloc] init] autorelease];
         NSDictionary *attachmentsDict = nil;

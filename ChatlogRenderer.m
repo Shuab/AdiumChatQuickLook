@@ -18,9 +18,29 @@
 @synthesize account=_account;
 @synthesize service=_service;
 @synthesize attachments=_attachments;
+@synthesize ISO8601Formatter=_ISO8601Formatter;
+@synthesize hoursFormatter=_hoursFormatter;
+
+- (id)init
+{
+    if (self=[super init]) {
+        self.ISO8601Formatter = [[NSDateFormatter alloc] init];
+        [self.ISO8601Formatter setTimeStyle:NSDateFormatterFullStyle];
+        [self.ISO8601Formatter setDateFormat:@"yyyy-MM-dd'T'HH:mm:ssZZZ"];
+        
+        self.hoursFormatter = [[NSDateFormatter alloc] init];
+        [self.hoursFormatter setTimeStyle:NSDateFormatterShortStyle];
+        [self.hoursFormatter setDateFormat:@"HH:mm:ss"];
+    }
+    
+    return self;
+}
 
 - (void)dealloc {
     [rendererBundle release];
+    [_ISO8601Formatter release];
+    [_hoursFormatter release];
+    
     [super dealloc];
 }
 
@@ -112,7 +132,7 @@
         return nil;
     
     return [NSXMLElement elementWithName:@"td" 
-                                children:[NSArray arrayWithObject:[NSXMLElement textWithStringValue:[ChatlogRenderer 
+                                children:[NSArray arrayWithObject:[NSXMLElement textWithStringValue:[self
                                                                                                      formatDate:timeString]]]
                               attributes:[NSArray arrayWithObject:[NSXMLElement attributeWithName:@"class" stringValue:@"time"]]];
 }
@@ -136,8 +156,12 @@
 - (NSXMLElement*)generateTextFromMessage:(NSXMLElement*)message {
     NSXMLElement *content = [[[message objectsForXQuery:@".//div" error:NULL] objectAtIndex:0] copy];
     
-    if(stripFontStyles == YES)
+    if (stripFontStyles == YES) {
         [ChatlogRenderer removeStyleRecursive:content];
+    }
+    else {
+        [ChatlogRenderer removeInlineWhiteStyleRecursive:content];
+    }
     
     for (NSUInteger i = 0; i < content.childCount; i++) {
         NSXMLElement *img = (NSXMLElement *)[content childAtIndex:i];
@@ -212,12 +236,17 @@
     if([sender isEqual:self.account]) {
         //My own event!
         NSXMLElement* content = [[[status objectsForXQuery:@".//div" error:NULL] objectAtIndex:0] copy];
-        if(stripFontStyles == YES)
-            [ChatlogRenderer removeStyleRecursive:content];
         
-        NSString* eventString = [NSString stringWithFormat:@"%@ (%@)", 
+        if (stripFontStyles == YES) {
+            [ChatlogRenderer removeStyleRecursive:content];
+        }
+        else {
+            [ChatlogRenderer removeInlineWhiteStyleRecursive:content];
+        }
+        
+        NSString* eventString = [NSString stringWithFormat:@"%@ (%@)",
                                  [[content childAtIndex:0] stringValue],
-                                 [ChatlogRenderer formatDate:[[status attributeForName:@"time"] stringValue]]];
+                                 [self formatDate:[[status attributeForName:@"time"] stringValue]]];
         
         content = [NSXMLElement elementWithName:@"div" 
                                        children:[NSArray arrayWithObject:[NSXMLElement textWithStringValue:eventString]]
@@ -240,32 +269,17 @@
 
 #pragma mark - Utility Methods
 
-+ (NSString*)formatDate:(NSString*)s {
-    static NSDateFormatter *ISO8601Formatter = nil;
-    static NSDateFormatter *hoursFormatter = nil;
-    
-    if (!ISO8601Formatter) {
-        ISO8601Formatter = [[[NSDateFormatter alloc] init] autorelease];
-        [ISO8601Formatter setTimeStyle:NSDateFormatterFullStyle];
-        [ISO8601Formatter setDateFormat:@"yyyy-MM-dd'T'HH:mm:ssZZZ"];
-    }
-    
-    if (!hoursFormatter) {
-        hoursFormatter = [[[NSDateFormatter alloc] init] autorelease];
-        [hoursFormatter setTimeStyle:NSDateFormatterShortStyle];
-        [hoursFormatter setDateFormat:@"HH:mm:ss"];
-    }
-    
+- (NSString*)formatDate:(NSString*)s {
 	// Remove : of time zone
 	NSMutableString *dateString = [[s mutableCopy] autorelease];
 	if ([dateString characterAtIndex: [dateString length] - 3] == ':')
 		[dateString deleteCharactersInRange: NSMakeRange([dateString length] - 3, 1)];
-	
+    
 	// Create NSDate
-	NSDate *date = [ISO8601Formatter dateFromString:dateString];
+    NSDate *date = [self.ISO8601Formatter dateFromString:dateString];
 	
 	// Extract the hours
-	return [hoursFormatter stringFromDate:date];
+    return [self.hoursFormatter stringFromDate:date];
 }
 
 + (void)removeStyleRecursive:(NSXMLElement*)el {
@@ -276,6 +290,19 @@
 
     for(NSXMLElement* child in [el children]) {
         [self removeStyleRecursive:child];
+    }
+}
+
++ (void)removeInlineWhiteStyleRecursive:(NSXMLElement*)el {
+    if (el.kind == NSXMLElementKind) {
+        NSXMLNode *style = [el attributeForName:@"style"];
+        NSString *notWhiteStyle = [style.stringValue stringByReplacingOccurrencesOfString:@"color: #ffffff"
+                                                                               withString:@"color: #000000"];
+        [style setStringValue:notWhiteStyle];
+    }
+    
+    for (NSXMLElement* child in el.children) {
+        [self removeInlineWhiteStyleRecursive:child];
     }
 }
 
